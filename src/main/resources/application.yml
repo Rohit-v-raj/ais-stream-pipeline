@@ -1,0 +1,69 @@
+server:
+  # 8080 berth planner, 8081 vessel ops orchestrator, 8088 Kafka UI.
+  port: 8091
+
+spring:
+  application:
+    name: ais-stream-pipeline
+  kafka:
+    # Any one broker is enough to find the others; listing all three means
+    # the app still starts when one of them is down.
+    bootstrap-servers: localhost:9092,localhost:9094,localhost:9096
+    producer:
+      # Wait until the leader and enough replicas (min.insync.replicas) have
+      # the record. With idempotence, a retried send is never written twice.
+      acks: all
+      compression-type: lz4
+      properties:
+        enable.idempotence: true
+        # Wait up to 5 ms to fill a batch: fewer, larger requests.
+        linger.ms: 5
+    consumer:
+      group-id: ais-cleaner
+      # A new group starts from the oldest record still kept, not from "now".
+      auto-offset-reset: earliest
+    # Keys and values (JSON) are set in KafkaSerializationConfig.java.
+    streams:
+      application-id: ais-streams
+      # For the topics Kafka Streams creates itself (changelogs, repartitions).
+      replication-factor: 3
+      state-dir: ./data/streams
+      properties:
+        # Reading, updating state and writing results commit together, once.
+        processing.guarantee: exactly_once_v2
+        commit.interval.ms: 1000
+        num.stream.threads: 2
+        # Windows follow the time in the AIS report, not the time it was replayed.
+        default.timestamp.extractor: com.port.ais.streams.AisTimestampExtractor
+
+# Override any of these on the command line, for example
+#   gradlew.bat bootRun --args="--pipeline.replayer.speed=120"
+pipeline:
+  topics:
+    partitions: 6
+    replication-factor: 3
+  replayer:
+    enabled: true
+    auto-start: true
+    # file: the export from tools/export_ais.py; synthetic: generated ships;
+    # auto: the file if it exists, otherwise synthetic.
+    source: auto
+    file: data/ais-export.csv.gz
+    # Replay this many times faster than the AIS timestamps. 30: a day in 48 minutes.
+    speed: 30
+    # 0 replays everything.
+    max-records: 0
+    # Share of records deliberately corrupted, so the dead-letter path always has work.
+    bad-record-rate: 0.001
+    synthetic-vessels: 40
+  cleaner:
+    enabled: true
+    # Consumer threads in this instance. More threads than partitions sit idle.
+    concurrency: 3
+  streams:
+    enabled: true
+  # Port areas: a circle around each port.
+  zones:
+    - { name: Floro,   lat: 61.600, lon: 5.030, radius-nm: 5 }
+    - { name: Maloy,   lat: 61.935, lon: 5.113, radius-nm: 5 }
+    - { name: Alesund, lat: 62.472, lon: 6.155, radius-nm: 5 }

@@ -1,0 +1,44 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '3.5.16'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'com.port'
+version = '0.0.1-SNAPSHOT'
+description = 'Streams AIS position reports through Kafka into live vessel positions and port arrivals'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+
+    // Producer, consumer and listener support. The Kafka client version
+    // comes from Spring Boot's dependency management (kafka-clients 3.9).
+    implementation 'org.springframework.kafka:spring-kafka'
+    // Kafka Streams: a library inside this app, not a separate cluster.
+    implementation 'org.apache.kafka:kafka-streams'
+
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'org.springframework.boot:spring-boot-testcontainers'
+    // Runs a topology against a fake, in-memory "Kafka": no broker needed.
+    testImplementation 'org.apache.kafka:kafka-streams-test-utils'
+    // A real broker in Docker for the end-to-end test.
+    testImplementation 'org.testcontainers:kafka'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.awaitility:awaitility'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}
